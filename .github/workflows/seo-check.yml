@@ -1,0 +1,209 @@
+name: SEO Health Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly SEO check every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  seo-audit:
+    runs-on: ubuntu-latest
+    name: SEO Audit & Optimization Check
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install SEO tools
+      run: |
+        npm install -g lighthouse-cli
+        npm install -g @lhci/cli
+        
+    - name: Check README SEO elements
+      run: |
+        echo "🔍 Checking README.md SEO optimization..."
+        
+        # Check for title optimization
+        if grep -q "MultiMC Launcher.*Complete Offline" README.md; then
+          echo "✅ SEO-optimized title found"
+        else
+          echo "❌ Title needs SEO optimization"
+          exit 1
+        fi
+        
+        # Check for meta description
+        if grep -q "Ultimate Offline Minecraft Launcher" README.md; then
+          echo "✅ Meta description found"
+        else
+          echo "❌ Meta description missing"
+          exit 1
+        fi
+        
+        # Check for keywords section
+        if grep -q "SEO Keywords" README.md; then
+          echo "✅ SEO keywords section found"
+        else
+          echo "❌ SEO keywords section missing"
+          exit 1
+        fi
+        
+        # Check for badges
+        badge_count=$(grep -c "shields.io" README.md)
+        if [ $badge_count -ge 4 ]; then
+          echo "✅ Sufficient badges found ($badge_count)"
+        else
+          echo "❌ Need more badges (found: $badge_count, minimum: 4)"
+          exit 1
+        fi
+        
+    - name: Validate documentation structure
+      run: |
+        echo "📚 Checking documentation structure..."
+        
+        # Check for required files
+        required_files=(
+          "CONTRIBUTING.md"
+          "LICENSE"
+          "CHANGELOG.md"
+          "docs/index.md"
+          "docs/_config.yml"
+        )
+        
+        for file in "${required_files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file exists"
+          else
+            echo "❌ $file missing"
+            exit 1
+          fi
+        done
+        
+    - name: Check GitHub templates
+      run: |
+        echo "📋 Checking GitHub issue templates..."
+        
+        if [ -f ".github/ISSUE_TEMPLATE/bug_report.md" ]; then
+          echo "✅ Bug report template exists"
+        else
+          echo "❌ Bug report template missing"
+          exit 1
+        fi
+        
+        if [ -f ".github/ISSUE_TEMPLATE/feature_request.md" ]; then
+          echo "✅ Feature request template exists"
+        else
+          echo "❌ Feature request template missing"
+          exit 1
+        fi
+        
+    - name: Analyze keyword density
+      run: |
+        echo "🎯 Analyzing keyword density..."
+        
+        # Primary keywords to check
+        keywords=("multimc" "offline" "minecraft" "launcher" "air-gapped" "enterprise")
+        
+        for keyword in "${keywords[@]}"; do
+          count=$(grep -i "$keyword" README.md | wc -l)
+          echo "📊 '$keyword' appears $count times"
+          
+          if [ $count -lt 3 ]; then
+            echo "⚠️  Keyword '$keyword' may need more mentions"
+          fi
+        done
+        
+    - name: Check for social media optimization
+      run: |
+        echo "📱 Checking social media optimization..."
+        
+        # Check for social preview setup
+        if [ -f "docs/_config.yml" ]; then
+          if grep -q "twitter:" docs/_config.yml; then
+            echo "✅ Twitter configuration found"
+          else
+            echo "⚠️  Twitter configuration missing"
+          fi
+          
+          if grep -q "facebook:" docs/_config.yml; then
+            echo "✅ Facebook configuration found"
+          else
+            echo "⚠️  Facebook configuration missing"
+          fi
+        fi
+        
+    - name: Generate SEO report
+      run: |
+        echo "📊 Generating SEO report..."
+        
+        cat > seo-report.md << EOF
+        # SEO Health Report
+        
+        **Generated:** $(date)
+        **Repository:** ${{ github.repository }}
+        **Branch:** ${{ github.ref_name }}
+        
+        ## ✅ SEO Checklist Status
+        
+        - [x] Optimized README title
+        - [x] Meta description present
+        - [x] SEO keywords section
+        - [x] Multiple badges for credibility
+        - [x] Documentation structure
+        - [x] GitHub templates
+        - [x] Changelog maintenance
+        - [x] License file
+        - [x] Contributing guidelines
+        
+        ## 📊 Keyword Analysis
+        
+        Primary keywords found in README.md:
+        $(grep -i "multimc\|offline\|minecraft\|launcher" README.md | wc -l) mentions of core keywords
+        
+        ## 🎯 Recommendations
+        
+        1. **Content Marketing**: Create blog posts about offline Minecraft deployment
+        2. **Community Engagement**: Participate in r/Minecraft, r/sysadmin discussions
+        3. **Documentation**: Expand use case examples
+        4. **Social Proof**: Collect user testimonials and case studies
+        
+        ## 📈 Next Steps
+        
+        - Monitor GitHub stars and forks growth
+        - Track documentation page views
+        - Measure search ranking improvements
+        - Collect community feedback
+        
+        EOF
+        
+        echo "📋 SEO report generated"
+        cat seo-report.md
+        
+    - name: Upload SEO report
+      uses: actions/upload-artifact@v3
+      with:
+        name: seo-report
+        path: seo-report.md
+        
+    - name: Comment on PR (if applicable)
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('seo-report.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 🔍 SEO Health Check Results\n\n${report}`
+          }); 
